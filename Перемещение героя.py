@@ -9,7 +9,7 @@ def terminate():
 
 
 def start_screen():
-    intro_text = ["Перемещение героя", "Герой двигается", "Камера", "Несколько уровней"]
+    intro_text = ["Перемещение героя", "Герой двигается", "Камера", "Несколько уровней", 'Тор']
 
     background = pygame.transform.scale(load_image('background.jpg'), (WIDTH, HEIGHT))
     screen.blit(background, (0, 0))
@@ -74,8 +74,8 @@ class Camera:
         self.dy = 0
 
     def apply(self, obj):
-        obj.rect.x += self.dx
-        obj.rect.y += self.dy
+        obj.rect.x = (obj.rect.x + self.dx) % WIDTH
+        obj.rect.y = (obj.rect.y + self.dy) % HEIGHT
 
     def update(self, target):
         self.dx = -(target.rect.x + target.rect.w // 2 - WIDTH // 2)
@@ -103,12 +103,11 @@ class Player(pygame.sprite.Sprite):
     def move(self, event):
         dx, dy = deltas.get(event.key, (0, 0))
         old_rect = self.rect.copy()
-        self.rect.x += dx * tile_width
-        self.rect.y += dy * tile_height
+        self.rect.x = (self.rect.x + dx * tile_width) % WIDTH
+        self.rect.y = (self.rect.y + dy * tile_height) % HEIGHT
         self.pos_x += dx
         self.pos_y += dy
-        if (pygame.sprite.spritecollideany(self, tiles_group['wall']) or
-                not (0 <= self.pos_x <= level_x and 0 <= self.pos_y <= level_y)):
+        if pygame.sprite.spritecollideany(self, tiles_group['wall']):
             self.rect = old_rect
             self.pos_x -= dx
             self.pos_y -= dy
