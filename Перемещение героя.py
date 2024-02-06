@@ -2,12 +2,6 @@ import sys
 import os
 import pygame
 
-deltas = {pygame.K_UP: (0, -1), pygame.K_DOWN: (0, 1), pygame.K_LEFT: (-1, 0), pygame.K_RIGHT: (1, 0)}
-tile_width = tile_height = 50
-
-
-FPS = 50
-
 
 def terminate():
     pygame.quit()
@@ -15,7 +9,7 @@ def terminate():
 
 
 def start_screen():
-    intro_text = ["Перемещение героя", "Герой двигается", "Карта на месте", "Несколько уровней"]
+    intro_text = ["Перемещение героя", "Герой двигается", "Камера", "Несколько уровней"]
 
     background = pygame.transform.scale(load_image('background.jpg'), (WIDTH, HEIGHT))
     screen.blit(background, (0, 0))
@@ -49,10 +43,6 @@ def load_image(name, colorkey=None):
     return image
 
 
-tile_images = {'wall': load_image('box.png'), 'empty': load_image('grass.png')}
-player_image = load_image('mario.png')
-
-
 def generate_level(level):
     new_player, x, y = None, None, None
     for y in range(len(level)):
@@ -78,9 +68,23 @@ def load_level(filename):
     return list(map(list, map(lambda x: x.ljust(max_width, '.'), level_map)))
 
 
+class Camera:
+    def __init__(self):
+        self.dx = 0
+        self.dy = 0
+
+    def apply(self, obj):
+        obj.rect.x += self.dx
+        obj.rect.y += self.dy
+
+    def update(self, target):
+        self.dx = -(target.rect.x + target.rect.w // 2 - WIDTH // 2)
+        self.dy = -(target.rect.y + target.rect.h // 2 - HEIGHT // 2)
+
+
 class Tile(pygame.sprite.Sprite):
     def __init__(self, tile_type, pos_x, pos_y):
-        super().__init__(tiles_group, all_sprites)
+        super().__init__(tiles_group[tile_type], all_sprites)
         self.image = tile_images[tile_type]
         self.rect = self.image.get_rect().move(tile_width * pos_x, tile_height * pos_y)
 
@@ -98,37 +102,52 @@ class Player(pygame.sprite.Sprite):
 
     def move(self, event):
         dx, dy = deltas.get(event.key, (0, 0))
-        new_x, new_y = self.pos_x + dx, self.pos_y + dy
-        if 0 <= new_x <= level_x and 0 <= new_y <= level_y and level[new_y][new_x] in '.@':
-            level[self.pos_y][self.pos_x] = '.'
-            level[new_y][new_x] = '@'
-            self.pos_x, self.pos_y = new_x, new_y
-            self.rect.x, self.rect.y = self.recalc(new_x, new_y)
+        old_rect = self.rect.copy()
+        self.rect.x += dx * tile_width
+        self.rect.y += dy * tile_height
+        self.pos_x += dx
+        self.pos_y += dy
+        if (pygame.sprite.spritecollideany(self, tiles_group['wall']) or
+                not (0 <= self.pos_x <= level_x and 0 <= self.pos_y <= level_y)):
+            self.rect = old_rect
+            self.pos_x -= dx
+            self.pos_y -= dy
 
+
+pygame.init()
 
 all_sprites = pygame.sprite.Group()
-tiles_group = pygame.sprite.Group()
+tiles_group = {'wall': pygame.sprite.Group(), 'empty': pygame.sprite.Group()}
 player_group = pygame.sprite.GroupSingle()
 
+deltas = {pygame.K_UP: (0, -1), pygame.K_DOWN: (0, 1), pygame.K_LEFT: (-1, 0), pygame.K_RIGHT: (1, 0)}
+tile_images = {'wall': load_image('box.png'), 'empty': load_image('grass.png')}
+player_image = load_image('mario.png')
+tile_width = tile_height = 50
 level = load_level(sys.stdin.readline().strip() + '.txt')
 player, level_x, level_y = generate_level(level)
 
-pygame.init()
 size = WIDTH, HEIGHT = (level_x + 1) * tile_width, (level_y + 1) * tile_height
-
 screen = pygame.display.set_mode(size)
 pygame.display.set_caption('Перемещение героя')
-clock = pygame.time.Clock()
-start_screen()
 
+clock = pygame.time.Clock()
+FPS = 50
+camera = Camera()
+
+start_screen()
 running = True
 while running:
+    screen.fill('black')
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
         if event.type == pygame.KEYDOWN:
             player.move(event)
-        all_sprites.draw(screen)
-        player_group.draw(screen)
-        pygame.display.flip()
+    camera.update(player)
+    for sprite in all_sprites:
+        camera.apply(sprite)
+    all_sprites.draw(screen)
+    player_group.draw(screen)
+    pygame.display.flip()
 pygame.quit()
